@@ -2668,7 +2668,7 @@ class Building(object):
     js_system_libraries = {
       'c': '',
       'dl': '',
-      'EGL': 'library_egl.js',
+      'EGL': '',
       'GL': 'library_gl.js',
       'GLESv2': 'library_gl.js',
       'GLEW': 'library_glew.js',
@@ -2714,7 +2714,7 @@ class Building(object):
     if 'USE_SDL=1' in link_settings:
       system_js_libraries += ['library_sdl.js']
     if 'USE_SDL=2' in link_settings:
-      system_js_libraries += ['library_egl.js', 'library_gl.js']
+      system_js_libraries += ['library_gl.js']
     return [path_from_root('src', x) for x in system_js_libraries]
 
   @staticmethod

@@ -91,6 +91,7 @@ def calculate(temp_files, in_temp, stdout_, stderr_, forced=[]):
   libcxxabi_symbols = read_symbols(shared.path_from_root('system', 'lib', 'libcxxabi', 'symbols'))
   gl_symbols = read_symbols(shared.path_from_root('system', 'lib', 'gl.symbols'))
   al_symbols = read_symbols(shared.path_from_root('system', 'lib', 'al.symbols'))
+  egl_symbols = read_symbols(shared.path_from_root('system', 'lib', 'egl.symbols'))
   compiler_rt_symbols = read_symbols(shared.path_from_root('system', 'lib', 'compiler-rt.symbols'))
   libc_extras_symbols = read_symbols(shared.path_from_root('system', 'lib', 'libc_extras.symbols'))
   pthreads_symbols = read_symbols(shared.path_from_root('system', 'lib', 'pthreads.symbols'))
@@ -279,6 +280,10 @@ def calculate(temp_files, in_temp, stdout_, stderr_, forced=[]):
   def create_pthreads_asmjs(libname):
     pthreads_files = [os.path.join('pthread', 'library_pthread_asmjs.c')]
     return build_libc(libname, pthreads_files, ['-O2', '-s', 'USE_PTHREADS=1'])
+
+  def create_egl(libname):
+    egl_files = [os.path.join('egl', 'library_egl.c')]
+    return build_libc(libname, egl_files, [])
 
   def create_wasm_libc(libname):
     # in asm.js we just use Math.sin etc., which is good for code size. But
@@ -607,6 +612,7 @@ def calculate(temp_files, in_temp, stdout_, stderr_, forced=[]):
                  Library('libal',         ext, create_al,          al_symbols,          [libc_name],   False), # noqa
                  Library('libhtml5',      ext, create_html5,       html5_symbols,       [],            False), # noqa
                  Library('libcompiler_rt','a', create_compiler_rt, compiler_rt_symbols, [libc_name],   False), # noqa
+                 Library('libegl',        ext, create_egl,         egl_symbols,         [libc_name],   False),
                  Library(malloc_name(),   ext, create_malloc,      [],                  [],            False)] # noqa
 
   if shared.Settings.USE_PTHREADS:
