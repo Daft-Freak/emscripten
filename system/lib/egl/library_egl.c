@@ -168,9 +168,9 @@ EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy, const EGLint *attr
   if (!configs) config_size = 0x7FFFFFFF;
 
   for(int a = 0; a <= EM_EGL_ALPHA_BIT; a += EM_EGL_ALPHA_BIT)
-    for(int d = 0; d <= EM_EGL_DEPTH_BIT; d += EM_EGL_DEPTH_BIT)
-      for(int s = 0; s <= EM_EGL_STENCIL_BIT; s += EM_EGL_STENCIL_BIT)
-        for(int aa = 0; aa <= EM_EGL_ANTIALIAS_BIT; aa += EM_EGL_ANTIALIAS_BIT)
+    for(int aa = 0; aa <= EM_EGL_ANTIALIAS_BIT; aa += EM_EGL_ANTIALIAS_BIT)
+      for(int d = 0; d <= EM_EGL_DEPTH_BIT; d += EM_EGL_DEPTH_BIT)
+        for(int s = 0; s <= EM_EGL_STENCIL_BIT; s += EM_EGL_STENCIL_BIT)
         {
           if (numMatchingConfigs >= config_size)
             break;
