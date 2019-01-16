@@ -452,6 +452,16 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapInterval(EGLDisplay dpy, EGLint interval)
   return EGL_TRUE;
 }
 
+EGLContextData *FindContextData(EGLContext ctx)
+{
+  for (EGLContextData *data = contexts; data; data = data->next)
+  {
+    if (data->context == (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)ctx)
+      return data;
+  }
+
+  return NULL;
+}
 
 EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list)
 {
@@ -571,7 +581,11 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
     return EGL_FALSE;
   }
 
-  // TODO: Test if context is valid 
+  if (!FindContextData(ctx))
+  {
+    eglError = EGL_BAD_CONTEXT;
+    return EGL_FALSE;
+  }
 
   if ((read != EGL_NO_SURFACE && read != EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE) || (draw != EGL_NO_SURFACE && draw != EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE))
   {
@@ -621,7 +635,11 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQueryContext(EGLDisplay dpy, EGLContext ctx, EG
 
   // TODO An EGL_NOT_INITIALIZED error is generated if EGL is not initialized for dpy.
 
-  // TODO Test if ctx is valid context
+  if (!FindContextData(ctx))
+  {
+    eglError = EGL_BAD_CONTEXT;
+    return EGL_FALSE;
+  }
 
   if (!value)
   {
