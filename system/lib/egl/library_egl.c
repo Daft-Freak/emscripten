@@ -214,7 +214,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglGetConfigAttrib(EGLDisplay dpy, EGLConfig confi
 
   switch(attribute)
   {
-    case EGL_BUFFER_SIZE: *value = 32; return EGL_TRUE;
+    case EGL_BUFFER_SIZE: *value = ((EGLint)config & EM_EGL_ALPHA_BIT) ? 32 : 24; return EGL_TRUE;
     case EGL_ALPHA_SIZE: *value = ((EGLint)config & EM_EGL_ALPHA_BIT) ? 8 : 0; return EGL_TRUE;
     case EGL_BLUE_SIZE:
     case EGL_GREEN_SIZE:
