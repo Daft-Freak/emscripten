@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <EGL/egl.h>
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
@@ -11,6 +12,13 @@ static EGLConfig eglCurrentInitializedConfig = (EGLConfig)0; // TODO: This shoul
 // Process wide:
 static EGLint eglDefaultDisplayInitialized = 0;
 static EGLConfig eglSurfaceConfig = (EGLConfig)0; // this works as long as we only support one surface
+
+typedef struct EGLContextData {
+  EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context;
+  struct EGLContextData *next;
+} EGLContextData;
+
+EGLContextData *contexts = NULL;
 
 #define EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_DISPLAY ((EGLDisplay)62000)
 #define EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE ((EGLSurface)62006)
@@ -501,6 +509,13 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
   eglError = ctx ? EGL_SUCCESS : EGL_BAD_MATCH;
   if (ctx)
   {
+    EGLContextData *data = malloc(sizeof(EGLContextData));
+
+    data->context = ctx;
+    data->next = contexts;
+
+    contexts = data;
+
     eglCurrentInitializedConfig = config;
   }
   return (EGLContext)ctx;
@@ -514,6 +529,19 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
     return EGL_FALSE;
   }
 
+  EGLContextData *data, *prev = NULL;
+  for (data = contexts; data; prev = data, data = data->next)
+  {
+    if (data->context == (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)ctx)
+      break;
+  }
+
+  if (!data)
+  {
+    eglError = EGL_BAD_CONTEXT;
+    return EGL_FALSE;
+  }
+
   if (emscripten_webgl_get_current_context() == (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)ctx) emscripten_webgl_make_context_current(0);
 
   EMSCRIPTEN_RESULT res = emscripten_webgl_destroy_context((EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)ctx);
@@ -522,6 +550,14 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
     eglError = EGL_SUCCESS;
     return EGL_TRUE;
   }
+
+  // remove from context list
+  if (prev)
+    prev->next = data->next;
+  else
+    contexts = data->next;
+
+  free(data);
 
   eglCurrentInitializedConfig = (EGLConfig)0;
   return EGL_FALSE;
