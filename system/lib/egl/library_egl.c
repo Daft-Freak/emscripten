@@ -111,43 +111,50 @@ static EGLBoolean ConfigPassesFilter(EGLConfig config, const EGLint *attrib_list
 {
   if (!attrib_list) return EGL_TRUE;
 
+  EGLint renderableType = EGL_OPENGL_ES_BIT;
+
   while(*attrib_list)
   {
     EGLint key = *attrib_list++;
     EGLint value = *attrib_list++;
     switch(key)
     {
-      //case EGL_BUFFER_SIZE:
+      case EGL_BUFFER_SIZE: if (value == 32 && ((EGLint)config & EM_EGL_ALPHA_BIT) == 0) return EGL_FALSE; break;
       //case EGL_RED_SIZE:
       //case EGL_GREEN_SIZE:
       //case EGL_BLUE_SIZE:
-      //case EGL_LUMINANCE_SIZE:
-      case EGL_ALPHA_SIZE: if (value > 0 && ((EGLint)config & EM_EGL_ALPHA_BIT) == 0) return EGL_FALSE;
-      //case EGL_ALPHA_MASK_SIZE:
-      //case EGL_BIND_TO_TEXTURE_RGB:
-      //case EGL_BIND_TO_TEXTURE_RGBA:
-      //case EGL_COLOR_BUFFER_TYPE:
-      //case EGL_CONFIG_CAVEAT:
-      //case EGL_CONFIG_ID:
-      //case EGL_CONFORMANT:
-      case EGL_DEPTH_SIZE: if (value > 0 && ((EGLint)config & EM_EGL_DEPTH_BIT) == 0) return EGL_FALSE;
-      //case EGL_LEVEL:
-      //case EGL_MATCH_NATIVE_PIXMAP:
-      //case EGL_MAX_SWAP_INTERVAL:
-      //case EGL_MIN_SWAP_INTERVAL:
-      //case EGL_NATIVE_RENDERABLE:
-      //case EGL_NATIVE_VISUAL_TYPE:
-      //case EGL_RENDERABLE_TYPE:
-      case EGL_SAMPLE_BUFFERS: if (value > 0 && ((EGLint)config & EM_EGL_ANTIALIAS_BIT) == 0) return EGL_FALSE;
-      case EGL_SAMPLES: if (value > 0 && ((EGLint)config & EM_EGL_ANTIALIAS_BIT) == 0) return EGL_FALSE;
-      case EGL_STENCIL_SIZE: if (value > 0 && ((EGLint)config & EM_EGL_STENCIL_BIT) == 0) return EGL_FALSE;
-      //case EGL_SURFACE_TYPE:
-      //case EGL_TRANSPARENT_TYPE:
-      //case EGL_TRANSPARENT_RED_VALUE:
+      //case EGL_LUMINANCE_SIZE: // no EGL_LUMINANCE_BUFFER configs
+      case EGL_ALPHA_SIZE: if (value > 0 && ((EGLint)config & EM_EGL_ALPHA_BIT) == 0) return EGL_FALSE; break;
+      //case EGL_ALPHA_MASK_SIZE: // VG only
+      case EGL_BIND_TO_TEXTURE_RGB:
+      case EGL_BIND_TO_TEXTURE_RGBA:
+        if(value == EGL_TRUE) return EGL_FALSE; break;
+      case EGL_COLOR_BUFFER_TYPE: if(value != EGL_RGB_BUFFER) return EGL_FALSE; break;
+      //case EGL_CONFIG_CAVEAT: // possibly map EGL_SLOW_CONFIG to preferLowPowerToHighPerformance?
+      case EGL_CONFIG_ID: if(value != (EGLint)config) return EGL_FALSE; break;
+      //case EGL_CONFORMANT: // reject any value here?
+      case EGL_DEPTH_SIZE: if (value > 0 && ((EGLint)config & EM_EGL_DEPTH_BIT) == 0) return EGL_FALSE; break;
+      case EGL_LEVEL: if(value != 0) return EGL_FALSE; break;
+      case EGL_MATCH_NATIVE_PIXMAP: if(value != EGL_NONE) return EGL_FALSE; break;
+      case EGL_MAX_SWAP_INTERVAL: if(value > 32) return EGL_FALSE; break;
+      case EGL_MIN_SWAP_INTERVAL: if(value < 0) return EGL_FALSE; break;
+      case EGL_NATIVE_RENDERABLE: if(value == EGL_TRUE) return EGL_FALSE; break;
+      case EGL_RENDERABLE_TYPE: renderableType = value; break;
+      case EGL_SAMPLE_BUFFERS: if (value > 0 && ((EGLint)config & EM_EGL_ANTIALIAS_BIT) == 0) return EGL_FALSE; break;
+      case EGL_SAMPLES: if (value > 0 && ((EGLint)config & EM_EGL_ANTIALIAS_BIT) == 0) return EGL_FALSE; break;
+      case EGL_STENCIL_SIZE: if (value > 0 && ((EGLint)config & EM_EGL_STENCIL_BIT) == 0) return EGL_FALSE; break;
+      case EGL_SURFACE_TYPE: if (value != EGL_WINDOW_BIT) return EGL_FALSE; break; // TODO: allow EGL_SWAP_BEHAVIOR_PRESERVED_BIT and handle the surface flag
+      case EGL_TRANSPARENT_TYPE: if(value != EGL_NONE) return EGL_FALSE; break;
+      //case EGL_TRANSPARENT_RED_VALUE: // no EGL_TRANSPARENT_RGB configs
       //case EGL_TRANSPARENT_GREEN_VALUE:
       //case EGL_TRANSPARENT_BLUE_VALUE:
     }
   }
+
+  // need to reject the default values for these
+  if (renderableType != EGL_OPENGL_ES2_BIT) // maybe allow EGL_OPENGL_BIT if legacy emulation is enabled?
+    return EGL_FALSE;
+
   return EGL_TRUE;
 }
 
