@@ -10,7 +10,6 @@ static EGLConfig eglCurrentInitializedConfig = (EGLConfig)0; // TODO: This shoul
 
 // Process wide:
 static EGLint eglDefaultDisplayInitialized = 0;
-static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE windowID = 0;
 
 #define EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_DISPLAY ((EGLDisplay)62000)
 #define EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE ((EGLSurface)62006)
@@ -488,13 +487,14 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
   attr.explicitSwapControl = ((EGLint)config & EM_EGL_EXPLICIT_SWAP_CONTROL_BIT) ? 1 : 0;
   attr.proxyContextToMainThread = ((EGLint)config & EM_EGL_PROXY_TO_MAIN_THREAD_BIT) ? 1 : 0;
   attr.renderViaOffscreenBackBuffer = ((EGLint)config & EM_EGL_RENDER_VIA_OFFSCREEN_BACK_BUFFER_BIT) ? 1 : 0;
-  windowID = emscripten_webgl_create_context(0, &attr);
-  eglError = windowID ? EGL_SUCCESS : EGL_BAD_MATCH;
-  if (EGL_SUCCESS)
+
+  EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_create_context(0, &attr);
+  eglError = ctx ? EGL_SUCCESS : EGL_BAD_MATCH;
+  if (ctx)
   {
     eglCurrentInitializedConfig = config;
   }
-  return (EGLContext)windowID;
+  return (EGLContext)ctx;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
