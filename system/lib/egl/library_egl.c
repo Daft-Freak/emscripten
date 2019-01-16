@@ -28,11 +28,10 @@ static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE windowID = 0;
 #define EM_EGL_PRESERVE_DRAWING_BUFFER_BIT 0x20
 #define EM_EGL_PREFER_LOW_POWER_TO_HIGH_PERFORMANCE_BIT 0x40
 #define EM_EGL_FAIL_IF_MAJOR_PERFORMANCE_CAVEAT_BIT 0x80
-#define EM_EGL_WEBGL2_BIT 0x100
-#define EM_EGL_ENABLE_EXTENSIONS_BY_DEFAULT_BIT 0x200
-#define EM_EGL_EXPLICIT_SWAP_CONTROL_BIT 0x400
-#define EM_EGL_PROXY_TO_MAIN_THREAD_BIT 0x800
-#define EM_EGL_RENDER_VIA_OFFSCREEN_BACK_BUFFER_BIT 0x1000
+#define EM_EGL_ENABLE_EXTENSIONS_BY_DEFAULT_BIT 0x100
+#define EM_EGL_EXPLICIT_SWAP_CONTROL_BIT 0x200
+#define EM_EGL_PROXY_TO_MAIN_THREAD_BIT 0x400
+#define EM_EGL_RENDER_VIA_OFFSCREEN_BACK_BUFFER_BIT 0x800
 
 EGLAPI EGLint EGLAPIENTRY eglGetError(void)
 {
@@ -173,18 +172,17 @@ EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy, const EGLint *attr
     for(int d = 0; d <= EM_EGL_DEPTH_BIT; d += EM_EGL_DEPTH_BIT)
       for(int s = 0; s <= EM_EGL_STENCIL_BIT; s += EM_EGL_STENCIL_BIT)
         for(int aa = 0; aa <= EM_EGL_ANTIALIAS_BIT; aa += EM_EGL_ANTIALIAS_BIT)
-          for(int es3 = 0; es3 <= EM_EGL_WEBGL2_BIT; es3 += EM_EGL_WEBGL2_BIT)
-          {
-            if (numMatchingConfigs >= config_size)
-              break;
+        {
+          if (numMatchingConfigs >= config_size)
+            break;
 
-            EGLConfig config = (EGLConfig)(baseConfig | a | d | s | aa | es3);
-            if (ConfigPassesFilter(config, attrib_list))
-            {
-              if (configs) configs[numMatchingConfigs] = config;
-              ++numMatchingConfigs;
-            }
+          EGLConfig config = (EGLConfig)(baseConfig | a | d | s | aa);
+          if (ConfigPassesFilter(config, attrib_list))
+          {
+            if (configs) configs[numMatchingConfigs] = config;
+            ++numMatchingConfigs;
           }
+        }
 
   *num_config = numMatchingConfigs;
   eglError = EGL_SUCCESS;
@@ -467,7 +465,7 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     }
     attrib_list += 2;
   }
-  if (glesContextVersion != 2)
+  if (glesContextVersion < 2 || glesContextVersion > 3)
   {
     fprintf(stderr, "When initializing GLES2/WebGL 1 via EGL, one must pass EGL_CONTEXT_CLIENT_VERSION = 2 to GL context attributes! GLES version %d is not supported!\n", glesContextVersion);
     eglError = EGL_BAD_CONFIG;
@@ -484,7 +482,7 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
   attr.preserveDrawingBuffer = ((EGLint)config & EM_EGL_PRESERVE_DRAWING_BUFFER_BIT) ? 1 : 0;
   attr.preferLowPowerToHighPerformance = ((EGLint)config & EM_EGL_PREFER_LOW_POWER_TO_HIGH_PERFORMANCE_BIT) ? 1 : 0;
   attr.failIfMajorPerformanceCaveat = ((EGLint)config & EM_EGL_FAIL_IF_MAJOR_PERFORMANCE_CAVEAT_BIT) ? 1 : 0;
-  attr.majorVersion = ((EGLint)config & EM_EGL_WEBGL2_BIT) ? 2 : 1;
+  attr.majorVersion = glesContextVersion - 1; // WebGL 1 is GLES 2, WebGL2 is GLES3
   attr.minorVersion = 0;
   attr.enableExtensionsByDefault = ((EGLint)config & EM_EGL_ENABLE_EXTENSIONS_BY_DEFAULT_BIT) ? 1 : 0;
   attr.explicitSwapControl = ((EGLint)config & EM_EGL_EXPLICIT_SWAP_CONTROL_BIT) ? 1 : 0;
