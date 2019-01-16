@@ -10,6 +10,7 @@ static EGLConfig eglCurrentInitializedConfig = (EGLConfig)0; // TODO: This shoul
 
 // Process wide:
 static EGLint eglDefaultDisplayInitialized = 0;
+static EGLConfig eglSurfaceConfig = (EGLConfig)0; // this works as long as we only support one surface
 
 #define EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_DISPLAY ((EGLDisplay)62000)
 #define EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE ((EGLSurface)62006)
@@ -264,6 +265,7 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig c
   }
 
   eglError = EGL_SUCCESS;
+  eglSurfaceConfig = config;
   return EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE;
 }
 
@@ -324,7 +326,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQuerySurface(EGLDisplay dpy, EGLSurface surface
 
   switch(attribute)
   {
-    case EGL_CONFIG_ID: *value = (EGLint)eglCurrentInitializedConfig; return EGL_TRUE;
+    case EGL_CONFIG_ID: *value = (EGLint)eglSurfaceConfig; return EGL_TRUE;
     case EGL_LARGEST_PBUFFER: 
       // Odd EGL API: If surface is not a pbuffer surface, 'value' should not be written to. It's not specified as an error, so true should(?) be returned.
       // Existing Android implementation seems to do so at least.
