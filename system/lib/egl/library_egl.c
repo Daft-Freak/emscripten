@@ -7,7 +7,6 @@
 static EGLint eglError = EGL_SUCCESS;
 static EGLSurface eglCurrentReadSurface = 0;
 static EGLSurface eglCurrentDrawSurface = 0;
-static EGLConfig eglCurrentInitializedConfig = (EGLConfig)0; // TODO: This should not be a singleton
 
 // Process wide:
 static EGLint eglDefaultDisplayInitialized = 0;
@@ -15,6 +14,7 @@ static EGLConfig eglSurfaceConfig = (EGLConfig)0; // this works as long as we on
 
 typedef struct EGLContextData {
   EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context;
+  EGLConfig config;
   struct EGLContextData *next;
 } EGLContextData;
 
@@ -521,12 +521,11 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
   {
     EGLContextData *data = malloc(sizeof(EGLContextData));
 
+    data->config = config;
     data->context = ctx;
     data->next = contexts;
 
     contexts = data;
-
-    eglCurrentInitializedConfig = config;
   }
   return (EGLContext)ctx;
 }
@@ -569,7 +568,6 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
 
   free(data);
 
-  eglCurrentInitializedConfig = (EGLConfig)0;
   return EGL_FALSE;
 }
 
@@ -635,7 +633,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQueryContext(EGLDisplay dpy, EGLContext ctx, EG
 
   // TODO An EGL_NOT_INITIALIZED error is generated if EGL is not initialized for dpy.
 
-  if (!FindContextData(ctx))
+  EGLContextData *data = FindContextData(ctx);
+  if (!data)
   {
     eglError = EGL_BAD_CONTEXT;
     return EGL_FALSE;
@@ -650,7 +649,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQueryContext(EGLDisplay dpy, EGLContext ctx, EG
   eglError = EGL_SUCCESS;
   switch(attribute)
   {
-    case EGL_CONFIG_ID: *value = (EGLint)eglCurrentInitializedConfig; return EGL_TRUE;
+    case EGL_CONFIG_ID: *value = (EGLint)data->config; return EGL_TRUE;
     case EGL_CONTEXT_CLIENT_TYPE: *value = EGL_OPENGL_ES_API; return EGL_TRUE;
     case EGL_CONTEXT_CLIENT_VERSION: *value = 2; return EGL_TRUE;
     case EGL_RENDER_BUFFER: *value = EGL_BACK_BUFFER; return EGL_TRUE;
