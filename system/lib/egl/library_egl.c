@@ -10,9 +10,11 @@ static EGLSurface eglCurrentDrawSurface = 0;
 
 // Process wide:
 static EGLint eglDefaultDisplayInitialized = 0;
+static EGLint eglContextID = 1;
 static EGLint eglSurfaceID = 1;
 
 typedef struct EGLContextData {
+  EGLint id;
   EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context;
   EGLConfig config;
   EGLint clientVersion;
@@ -499,7 +501,7 @@ EGLContextData *FindContextData(EGLContext ctx)
 {
   for (EGLContextData *data = contexts; data; data = data->next)
   {
-    if (data->context == (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)ctx)
+    if (data->id == (EGLint)ctx)
       return data;
   }
 
@@ -564,14 +566,17 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
   {
     EGLContextData *data = malloc(sizeof(EGLContextData));
 
+    data->id = eglContextID++;
     data->config = config;
     data->context = ctx;
     data->clientVersion = glesContextVersion;
     data->next = contexts;
 
     contexts = data;
+
+    return (EGLContext)data->id;
   }
-  return (EGLContext)ctx;
+  return EGL_NO_CONTEXT;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
@@ -585,7 +590,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
   EGLContextData *data, *prev = NULL;
   for (data = contexts; data; prev = data, data = data->next)
   {
-    if (data->context == (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)ctx)
+    if (data->id == (EGLint)ctx)
       break;
   }
 
@@ -595,9 +600,9 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
     return EGL_FALSE;
   }
 
-  if (emscripten_webgl_get_current_context() == (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)ctx) emscripten_webgl_make_context_current(0);
+  if (emscripten_webgl_get_current_context() == data->context) emscripten_webgl_make_context_current(0);
 
-  EMSCRIPTEN_RESULT res = emscripten_webgl_destroy_context((EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)ctx);
+  EMSCRIPTEN_RESULT res = emscripten_webgl_destroy_context(data->context);
   if (res >= 0)
   {
     eglError = EGL_SUCCESS;
@@ -623,7 +628,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
     return EGL_FALSE;
   }
 
-  if (ctx != EGL_NO_CONTEXT && !FindContextData(ctx))
+  EGLContextData *ctxData = FindContextData(ctx);
+  if (ctx != EGL_NO_CONTEXT && !ctxData)
   {
     eglError = EGL_BAD_CONTEXT;
     return EGL_FALSE;
@@ -650,7 +656,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
     return EGL_FALSE;
   }
 
-  EMSCRIPTEN_RESULT res = emscripten_webgl_make_context_current((EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)ctx);
+  EMSCRIPTEN_RESULT res = emscripten_webgl_make_context_current(ctxData ? ctxData->context : 0);
   if (res >= 0)
   {
     eglCurrentReadSurface = read;
@@ -663,7 +669,15 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
 
 EGLAPI EGLContext EGLAPIENTRY eglGetCurrentContext(void)
 {
-  return (EGLContext)emscripten_webgl_get_current_context();
+  EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+
+  for (EGLContextData *data = contexts; data; data = data->next)
+  {
+    if(data->context == ctx)
+      return (EGLContext)data->id;
+  }
+
+  return EGL_NO_CONTEXT;
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglGetCurrentSurface(EGLint readdraw)
