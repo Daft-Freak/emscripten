@@ -581,7 +581,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
     return EGL_FALSE;
   }
 
-  if (!FindContextData(ctx))
+  if (ctx != EGL_NO_CONTEXT && !FindContextData(ctx))
   {
     eglError = EGL_BAD_CONTEXT;
     return EGL_FALSE;
