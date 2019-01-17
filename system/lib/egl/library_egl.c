@@ -594,12 +594,6 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
   if (data->context)
     res = emscripten_webgl_destroy_context(data->context);
 
-  if (res >= 0)
-  {
-    eglError = EGL_SUCCESS;
-    return EGL_TRUE;
-  }
-
   // remove from context list
   if (prev)
     prev->next = data->next;
@@ -607,6 +601,12 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
     contexts = data->next;
 
   free(data);
+
+  if (res >= 0)
+  {
+    eglError = EGL_SUCCESS;
+    return EGL_TRUE;
+  }
 
   return EGL_FALSE;
 }
