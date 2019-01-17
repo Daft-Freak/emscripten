@@ -18,6 +18,7 @@ typedef struct EGLContextData {
   EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context;
   EGLConfig config;
   EGLint clientVersion;
+  EGLSurface lastSurface;
   struct EGLContextData *next;
 } EGLContextData;
 
@@ -26,6 +27,7 @@ EGLContextData *contexts = NULL;
 typedef struct EGLSurfaceData {
   EGLint id;
   EGLConfig config;
+  const char *target;
   struct EGLSurfaceData *next;
 } EGLSurfaceData;
 
@@ -304,6 +306,7 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig c
 
   data->id = eglSurfaceID++;
   data->config = config;
+  data->target = win;
   data->next = surfaces;
 
   surfaces = data;
@@ -395,7 +398,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQuerySurface(EGLDisplay dpy, EGLSurface surface
     case EGL_HEIGHT:
     {
       int w, h;
-      emscripten_get_canvas_element_size(NULL, &w, &h); // TODO: Figure out which canvas to query here.
+      emscripten_get_canvas_element_size(data->target, &w, &h);
       *value = (attribute == EGL_WIDTH) ? w : h;
       return EGL_TRUE;
     }
@@ -543,32 +546,16 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     return EGL_NO_CONTEXT;
   }
 
-  EmscriptenWebGLContextAttributes attr;
-  emscripten_webgl_init_context_attributes(&attr);
-  attr.alpha = ((EGLint)config & EM_EGL_ALPHA_BIT) ? 1 : 0;
-  attr.depth = ((EGLint)config & EM_EGL_DEPTH_BIT) ? 1 : 0;
-  attr.stencil = ((EGLint)config & EM_EGL_STENCIL_BIT) ? 1 : 0;
-  attr.antialias = ((EGLint)config & EM_EGL_ANTIALIAS_BIT) ? 1 : 0;
-  attr.premultipliedAlpha = ((EGLint)config & EM_EGL_PREMULTIPLIED_ALPHA_BIT) ? 1 : 0;
-  attr.preserveDrawingBuffer = ((EGLint)config & EM_EGL_PRESERVE_DRAWING_BUFFER_BIT) ? 1 : 0;
-  attr.preferLowPowerToHighPerformance = ((EGLint)config & EM_EGL_PREFER_LOW_POWER_TO_HIGH_PERFORMANCE_BIT) ? 1 : 0;
-  attr.failIfMajorPerformanceCaveat = ((EGLint)config & EM_EGL_FAIL_IF_MAJOR_PERFORMANCE_CAVEAT_BIT) ? 1 : 0;
-  attr.majorVersion = glesContextVersion - 1; // WebGL 1 is GLES 2, WebGL2 is GLES3
-  attr.minorVersion = 0;
-  attr.enableExtensionsByDefault = ((EGLint)config & EM_EGL_ENABLE_EXTENSIONS_BY_DEFAULT_BIT) ? 1 : 0;
-  attr.explicitSwapControl = ((EGLint)config & EM_EGL_EXPLICIT_SWAP_CONTROL_BIT) ? 1 : 0;
-  attr.proxyContextToMainThread = ((EGLint)config & EM_EGL_PROXY_TO_MAIN_THREAD_BIT) ? 1 : 0;
-  attr.renderViaOffscreenBackBuffer = ((EGLint)config & EM_EGL_RENDER_VIA_OFFSCREEN_BACK_BUFFER_BIT) ? 1 : 0;
-
-  EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_create_context(0, &attr);
-  eglError = ctx ? EGL_SUCCESS : EGL_BAD_MATCH;
-  if (ctx)
+  // as the target is in the surface, we can't create the real context yet
+  // TODO: at least check is the creation is possible
+  eglError = EGL_SUCCESS;
+  if (EGL_TRUE)
   {
     EGLContextData *data = malloc(sizeof(EGLContextData));
 
     data->id = eglContextID++;
     data->config = config;
-    data->context = ctx;
+    data->context = 0;
     data->clientVersion = glesContextVersion;
     data->next = contexts;
 
@@ -602,7 +589,11 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
 
   if (emscripten_webgl_get_current_context() == data->context) emscripten_webgl_make_context_current(0);
 
-  EMSCRIPTEN_RESULT res = emscripten_webgl_destroy_context(data->context);
+  EMSCRIPTEN_RESULT res = 0;
+
+  if (data->context)
+    res = emscripten_webgl_destroy_context(data->context);
+
   if (res >= 0)
   {
     eglError = EGL_SUCCESS;
@@ -652,6 +643,45 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
   // we don't support surfaceless contexts
   if (ctx != EGL_NO_CONTEXT && (read == EGL_NO_SURFACE || draw == EGL_NO_SURFACE))
   {
+    eglError = EGL_BAD_MATCH;
+    return EGL_FALSE;
+  }
+
+  // really create the context
+  if(ctx && !ctxData->context)
+  {
+    EmscriptenWebGLContextAttributes attr;
+    emscripten_webgl_init_context_attributes(&attr);
+
+    EGLConfig config = ctxData->config;
+    attr.alpha = ((EGLint)config & EM_EGL_ALPHA_BIT) ? 1 : 0;
+    attr.depth = ((EGLint)config & EM_EGL_DEPTH_BIT) ? 1 : 0;
+    attr.stencil = ((EGLint)config & EM_EGL_STENCIL_BIT) ? 1 : 0;
+    attr.antialias = ((EGLint)config & EM_EGL_ANTIALIAS_BIT) ? 1 : 0;
+    attr.premultipliedAlpha = ((EGLint)config & EM_EGL_PREMULTIPLIED_ALPHA_BIT) ? 1 : 0;
+    attr.preserveDrawingBuffer = ((EGLint)config & EM_EGL_PRESERVE_DRAWING_BUFFER_BIT) ? 1 : 0;
+    attr.preferLowPowerToHighPerformance = ((EGLint)config & EM_EGL_PREFER_LOW_POWER_TO_HIGH_PERFORMANCE_BIT) ? 1 : 0;
+    attr.failIfMajorPerformanceCaveat = ((EGLint)config & EM_EGL_FAIL_IF_MAJOR_PERFORMANCE_CAVEAT_BIT) ? 1 : 0;
+    attr.majorVersion = ctxData->clientVersion - 1; // WebGL 1 is GLES 2, WebGL2 is GLES3
+    attr.minorVersion = 0;
+    attr.enableExtensionsByDefault = ((EGLint)config & EM_EGL_ENABLE_EXTENSIONS_BY_DEFAULT_BIT) ? 1 : 0;
+    attr.explicitSwapControl = ((EGLint)config & EM_EGL_EXPLICIT_SWAP_CONTROL_BIT) ? 1 : 0;
+    attr.proxyContextToMainThread = ((EGLint)config & EM_EGL_PROXY_TO_MAIN_THREAD_BIT) ? 1 : 0;
+    attr.renderViaOffscreenBackBuffer = ((EGLint)config & EM_EGL_RENDER_VIA_OFFSCREEN_BACK_BUFFER_BIT) ? 1 : 0;
+
+    ctxData->context = emscripten_webgl_create_context(drawData->target, &attr);
+    if (!ctxData->context)
+    {
+      eglError = EGL_BAD_MATCH;
+      return EGL_FALSE;
+    }
+
+    ctxData->lastSurface = draw;
+  }
+
+  if(ctx && ctxData->context && ctxData->lastSurface != draw)
+  {
+    fprintf(stderr, "Reusing the same context with multiple canvases is not supported!\n");
     eglError = EGL_BAD_MATCH;
     return EGL_FALSE;
   }
