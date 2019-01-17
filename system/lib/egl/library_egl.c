@@ -15,6 +15,7 @@ static EGLConfig eglSurfaceConfig = (EGLConfig)0; // this works as long as we on
 typedef struct EGLContextData {
   EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context;
   EGLConfig config;
+  EGLint clientVersion;
   struct EGLContextData *next;
 } EGLContextData;
 
@@ -523,6 +524,7 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
 
     data->config = config;
     data->context = ctx;
+    data->clientVersion = glesContextVersion;
     data->next = contexts;
 
     contexts = data;
@@ -651,7 +653,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQueryContext(EGLDisplay dpy, EGLContext ctx, EG
   {
     case EGL_CONFIG_ID: *value = (EGLint)data->config; return EGL_TRUE;
     case EGL_CONTEXT_CLIENT_TYPE: *value = EGL_OPENGL_ES_API; return EGL_TRUE;
-    case EGL_CONTEXT_CLIENT_VERSION: *value = 2; return EGL_TRUE;
+    case EGL_CONTEXT_CLIENT_VERSION: *value = data->clientVersion; return EGL_TRUE;
     case EGL_RENDER_BUFFER: *value = EGL_BACK_BUFFER; return EGL_TRUE;
     default:
       eglError = EGL_BAD_ATTRIBUTE;
