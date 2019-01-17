@@ -10,7 +10,7 @@ static EGLSurface eglCurrentDrawSurface = 0;
 
 // Process wide:
 static EGLint eglDefaultDisplayInitialized = 0;
-static EGLConfig eglSurfaceConfig = (EGLConfig)0; // this works as long as we only support one surface
+static EGLint eglSurfaceID = 1;
 
 typedef struct EGLContextData {
   EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context;
@@ -21,8 +21,15 @@ typedef struct EGLContextData {
 
 EGLContextData *contexts = NULL;
 
+typedef struct EGLSurfaceData {
+  EGLint id;
+  EGLConfig config;
+  struct EGLSurfaceData *next;
+} EGLSurfaceData;
+
+EGLSurfaceData *surfaces = NULL;
+
 #define EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_DISPLAY ((EGLDisplay)62000)
-#define EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE ((EGLSurface)62006)
 
 // Currently there are few enough configuration options for creating a WebGL context
 // that all the permutations can fit in an uint32. Therefore use bit packing to represent
@@ -272,6 +279,17 @@ EGLAPI EGLBoolean EGLAPIENTRY eglGetConfigAttrib(EGLDisplay dpy, EGLConfig confi
   }
 }
 
+EGLSurfaceData *FindSurfaceData(EGLSurface ctx)
+{
+  for (EGLSurfaceData *data = surfaces; data; data = data->next)
+  {
+    if (data->id == (EGLint)ctx)
+      return data;
+  }
+
+  return NULL;
+}
+
 EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config, EGLNativeWindowType win, const EGLint *attrib_list)
 {
   if (dpy != EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_DISPLAY)
@@ -280,9 +298,16 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig c
     return 0;
   }
 
+  EGLSurfaceData *data = malloc(sizeof(EGLSurfaceData));
+
+  data->id = eglSurfaceID++;
+  data->config = config;
+  data->next = surfaces;
+
+  surfaces = data;
+
   eglError = EGL_SUCCESS;
-  eglSurfaceConfig = config;
-  return EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE;
+  return (EGLSurface)data->id;
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig config, const EGLint *attrib_list)
@@ -305,7 +330,14 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroySurface(EGLDisplay dpy, EGLSurface surfa
     return EGL_FALSE;
   }
 
-  if (surface != EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE)
+  EGLSurfaceData *data, *prev = NULL;
+  for (data = surfaces; data; prev = data, data = data->next)
+  {
+    if (data->id == (EGLint)surface)
+      break;
+  }
+
+  if (!data)
   {
     eglError = EGL_BAD_SURFACE;
     return EGL_FALSE;
@@ -313,6 +345,15 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroySurface(EGLDisplay dpy, EGLSurface surfa
 
   if (eglCurrentReadSurface == surface) eglCurrentReadSurface = 0;
   if (eglCurrentDrawSurface == surface) eglCurrentDrawSurface = 0;
+
+  // remove from surface list
+  if (prev)
+    prev->next = data->next;
+  else
+    surfaces = data->next;
+
+  free(data);
+
   eglError = EGL_SUCCESS;
   return EGL_TRUE;
 
@@ -326,7 +367,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQuerySurface(EGLDisplay dpy, EGLSurface surface
     return EGL_FALSE;
   }
 
-  if (surface != EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE)
+  EGLSurfaceData *data = FindSurfaceData(surface);
+  if (!data)
   {
     eglError = EGL_BAD_SURFACE;
     return EGL_FALSE;
@@ -342,7 +384,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQuerySurface(EGLDisplay dpy, EGLSurface surface
 
   switch(attribute)
   {
-    case EGL_CONFIG_ID: *value = (EGLint)eglSurfaceConfig; return EGL_TRUE;
+    case EGL_CONFIG_ID: *value = (EGLint)data->config; return EGL_TRUE;
     case EGL_LARGEST_PBUFFER: 
       // Odd EGL API: If surface is not a pbuffer surface, 'value' should not be written to. It's not specified as an error, so true should(?) be returned.
       // Existing Android implementation seems to do so at least.
@@ -587,7 +629,9 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
     return EGL_FALSE;
   }
 
-  if ((read != EGL_NO_SURFACE && read != EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE) || (draw != EGL_NO_SURFACE && draw != EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE))
+  EGLSurfaceData *readData = FindSurfaceData(read), *drawData = FindSurfaceData(draw);
+
+  if ((read != EGL_NO_SURFACE && !readData) || (draw != EGL_NO_SURFACE && !drawData))
   {
     eglError = EGL_BAD_SURFACE;
     return EGL_FALSE;
@@ -694,7 +738,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
     return EGL_FALSE;
   }
 
-  if (surface != EMSCRIPTEN_EGL_MAGIC_ID_FOR_DEFAULT_SURFACE)
+
+  if (!FindSurfaceData(surface))
   {
     eglError = EGL_BAD_SURFACE;
     return EGL_FALSE;
