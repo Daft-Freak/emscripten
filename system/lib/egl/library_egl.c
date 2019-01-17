@@ -593,6 +593,19 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
     return EGL_FALSE;
   }
 
+  if ((read != EGL_NO_SURFACE || draw != EGL_NO_SURFACE) && (read == EGL_NO_SURFACE || draw == EGL_NO_SURFACE))
+  {
+    eglError = EGL_BAD_MATCH;
+    return EGL_FALSE;
+  }
+
+  // we don't support surfaceless contexts
+  if (ctx != EGL_NO_CONTEXT && (read == EGL_NO_SURFACE || draw == EGL_NO_SURFACE))
+  {
+    eglError = EGL_BAD_MATCH;
+    return EGL_FALSE;
+  }
+
   EMSCRIPTEN_RESULT res = emscripten_webgl_make_context_current((EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)ctx);
   if (res >= 0)
   {
